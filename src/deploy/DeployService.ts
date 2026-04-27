@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as yaml from 'js-yaml';
-import { AppConfig, AffiliateOffer } from '../../lib/types';
-import { SheetsClient } from '../../lib/sheets/client';
-import { AffiliateFactory } from '../../lib/affiliates/factory';
+import { AppConfig, AffiliateOffer } from '../lib/types';
+import { loadConfig } from '../lib/config';
+import { SheetsClient } from '../lib/sheets/client';
+import { AffiliateFactory } from '../lib/affiliates/factory';
 
 interface DeployOptions {
   affiliate?: string;
@@ -19,7 +19,7 @@ export class DeployService {
   private allOfferIds: Set<string>;
 
   constructor(configPath: string) {
-    this.config = yaml.load(fs.readFileSync(configPath, 'utf8')) as AppConfig;
+    this.config = loadConfig(configPath);
     this.sheets = new SheetsClient(this.config);
     this.processedOffers = new Set();
     this.allOfferIds = new Set();
@@ -64,7 +64,9 @@ export class DeployService {
     let skipped = 0;
 
     // 遍历联盟
-    const affiliates = affiliate ? { [affiliate]: credentials[affiliate] || {} } : credentials;
+    type SiteCredentials = { pid: string; token: string; campaignId?: string };
+    type AffiliateSites = { [siteName: string]: SiteCredentials };
+    const affiliates: { [affiliate: string]: AffiliateSites } = affiliate ? { [affiliate]: credentials[affiliate] || {} } : credentials;
 
     for (const [affName, sites] of Object.entries(affiliates)) {
       if (Object.keys(sites).length === 0) {
@@ -82,7 +84,7 @@ export class DeployService {
           const offers = await adapter.fetchOffers({ pid: cred.pid, token: cred.token, campaignId: cred.campaignId });
 
           // 按 EPC 排序，优先处理高收益的
-          offers.sort((a, b) => (b.epc || 0) - (a.epc || 0));
+          offers.sort((a: AffiliateOffer, b: AffiliateOffer) => (b.epc || 0) - (a.epc || 0));
 
           let countToProcess = Math.min(count, offers.length);
 

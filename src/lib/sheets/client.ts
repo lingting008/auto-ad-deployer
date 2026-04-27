@@ -107,7 +107,8 @@ export class SheetsClient {
     const newRowIndex = historyRows.length + 1;
     await this.writeRow(historyTab, newRowIndex, rowData);
 
-    await this.client.spreadsheets.values.delete({
+    // 清空原行
+    await this.client.spreadsheets.values.clear({
       spreadsheetId: this.spreadsheetId,
       range: `${bulkTab}!${rowIndex}:${rowIndex}`,
     });

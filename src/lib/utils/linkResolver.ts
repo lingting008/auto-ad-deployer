@@ -14,6 +14,12 @@ export interface ProxyConfig {
   password?: string;
 }
 
+// 魔法数字常量
+const REQUEST_TIMEOUT_MS = 20000;
+const MAX_REDIRECT_DEPTH = 20;
+const MIN_LANDING_PAGE_SIZE = 2048;
+const MAX_RETRY_ATTEMPTS = 3;
+
 /**
  * 解析联盟推广链接，跟随所有跳转获取最终落地页和追踪参数
  * 支持 HTTP 302、JavaScript、meta refresh、form POST 等跳转方式
@@ -43,7 +49,7 @@ export class LinkResolver {
     const seen = new Set<string>();
     const cookies: { [key: string]: string } = {};
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
       try {
         const result = await this.followRedirect(currentUrl, country, cookies, seen, redirectChain);
         if (result) return result;
@@ -80,19 +86,20 @@ export class LinkResolver {
   ): Promise<LinkResolutionResult | null> {
     const urlKey = url + '|GET';
     if (seen.has(urlKey)) {
-      if (seen.size > 15) return null;
+      if (seen.size >= MAX_REDIRECT_DEPTH) return null;
     }
     seen.add(urlKey);
     chain.push(url);
 
     const cookieStr = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const response = await axios({
         method: 'GET',
         url: url,
         maxRedirects: 0,
-        timeout: 20000,
         headers: {
           'User-Agent': this.randomUserAgent(),
           'Accept-Language': this.randomAcceptLanguage(country),
@@ -100,7 +107,9 @@ export class LinkResolver {
         },
         proxy: this.buildAxiosProxy(),
         validateStatus: (status) => status !== undefined && status < 600,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       // HTTP 重定向
       if (response.status === 301 || response.status === 302 || response.status === 303 || response.status === 307 || response.status === 308) {
@@ -125,7 +134,7 @@ export class LinkResolver {
         const html = typeof response.data === 'string' ? response.data : String(response.data);
 
         // 落地页判断：内容 > 2KB
-        if (html.length > 2048) {
+        if (html.length > MIN_LANDING_PAGE_SIZE) {
           const urlSuffix = this.extractUrlSuffix(chain);
           const finalUrl = chain[chain.length - 1];
           const urlObj = new URL(finalUrl);
@@ -155,7 +164,11 @@ export class LinkResolver {
         return { finalUrl, urlSuffix, domain: urlObj.hostname, redirectChain: chain };
       }
     } catch (e) {
+      clearTimeout(timeout);
       const err = e as AxiosError;
+      if (err.name === 'CanceledError' || err.code === 'ECONNABORTED') {
+        throw new Error(`Request timeout for: ${url}`);
+      }
       if (err.response?.status === 301 || err.response?.status === 302) {
         const location = err.response.headers['location'];
         if (location) {

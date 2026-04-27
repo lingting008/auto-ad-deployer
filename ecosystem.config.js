@@ -12,6 +12,7 @@ module.exports = {
       error_file: './logs/user1-error.log',
       out_file: './logs/user1-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      post_start: ['mkdir', '-p', 'logs'],
     },
     // 多用户示例：取消注释并修改为你的配置
     // {

@@ -1,6 +1,12 @@
 import axios from 'axios';
 import { AppConfig } from '../types';
 
+// 魔法数字常量
+const MAX_TITLE_LENGTH = 30;
+const MAX_DESCRIPTION_LENGTH = 90;
+const MAX_TITLES = 15;
+const MAX_DESCRIPTIONS = 4;
+
 export interface AdContent {
   titles: string[];
   descriptions: string[];
@@ -110,23 +116,23 @@ DESCRIPTIONS:
 
     if (titleMatch) {
       const lines = titleMatch[1].trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      for (const line of lines.slice(0, 15)) {
+      for (const line of lines.slice(0, MAX_TITLES)) {
         const clean = line.replace(/^\d+[\.\)]\s*/, '').trim();
-        if (clean.length <= 30) titles.push(clean);
+        if (clean.length <= MAX_TITLE_LENGTH) titles.push(clean);
       }
     }
 
     if (descMatch) {
       const lines = descMatch[1].trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      for (const line of lines.slice(0, 4)) {
+      for (const line of lines.slice(0, MAX_DESCRIPTIONS)) {
         const clean = line.replace(/^\d+[\.\)]\s*/, '').trim();
-        if (clean.length <= 90) descriptions.push(clean);
+        if (clean.length <= MAX_DESCRIPTION_LENGTH) descriptions.push(clean);
       }
     }
 
     // fallback if parsing failed
     if (titles.length === 0) return this.fallbackGenerate('', []);
-    return { titles: titles.slice(0, 15), descriptions: descriptions.slice(0, 4) };
+    return { titles: titles.slice(0, MAX_TITLES), descriptions: descriptions.slice(0, MAX_DESCRIPTIONS) };
   }
 
   private fallbackGenerate(domain: string, keywords: string[]): AdContent {

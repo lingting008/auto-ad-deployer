@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { AppConfig } from '../types';
 
+// 魔法数字常量
+const MIN_SEARCH_VOLUME = 200;
+const REQUEST_TIMEOUT_MS = 10000;
+
 export interface KeywordResult {
   keywords: string[];
   country: string;
@@ -30,7 +34,7 @@ export class KeywordFetcher {
           domain,
           data: 'top_keywords',
         },
-        timeout: 10000,
+        timeout: REQUEST_TIMEOUT_MS,
       });
 
       const data = response.data;
@@ -41,7 +45,7 @@ export class KeywordFetcher {
       if (data.top_keywords && Array.isArray(data.top_keywords)) {
         for (const kw of data.top_keywords) {
           if (keywords.length >= limit) break;
-          if (kw.keyword && kw.search_volume > 200) {
+          if (kw.keyword && kw.search_volume > MIN_SEARCH_VOLUME) {
             keywords.push(kw.keyword);
           }
         }
@@ -56,7 +60,7 @@ export class KeywordFetcher {
       }
 
       // 流量太低则不推荐
-      if (traffic < 200) {
+      if (traffic < MIN_SEARCH_VOLUME) {
         return { keywords: [], country: topRegion, traffic };
       }
 
@@ -65,18 +69,6 @@ export class KeywordFetcher {
       console.error(`Failed to fetch keywords for ${domain}:`, (e as Error).message);
       return { keywords: [], country: 'US', traffic: 0 };
     }
-  }
-
-  /**
-   * 通过品牌名反猜域名
-   */
-  guessDomainFromBrand(brandName: string): string {
-    const normalized = brandName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const tlds = ['.com', '.co', '.io', '.net', '.org'];
-    for (const tld of tlds) {
-      return `${normalized}${tld}`;
-    }
-    return `${normalized}.com`;
   }
 
   private normalizeCountry(regionCode: string): string {

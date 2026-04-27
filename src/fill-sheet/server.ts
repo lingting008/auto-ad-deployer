@@ -1,9 +1,9 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as yaml from 'js-yaml';
 import { FillSheetService } from './FillSheetService';
 import { AppConfig } from '../lib/types';
+import { loadConfig } from '../lib/config';
 
 /**
  * fill-sheet HTTP 服务器
@@ -13,35 +13,56 @@ class FillSheetServer {
   private config: AppConfig;
   private service: FillSheetService | null = null;
   private server: http.Server;
-  private proxyHost: string;
-  private proxyPort: number;
+  private fillLock: Promise<void> | null = null;
 
   constructor(configPath: string) {
-    this.config = yaml.load(fs.readFileSync(configPath, 'utf8')) as AppConfig;
-    this.proxyHost = this.config.proxy.host;
-    this.proxyPort = this.config.proxy.port;
+    this.config = loadConfig(configPath);
 
     this.server = http.createServer((req, res) => this.handleRequest(req, res));
+  }
+
+  /**
+   * 获取锁，确保同时只有一个 fill 进程在运行
+   * 如果已经有进程在运行，返回 null
+   */
+  private acquireLock(): Promise<(() => void) | null> {
+    if (this.fillLock !== null) {
+      return Promise.resolve(null); // 已有进程在运行
+    }
+
+    return new Promise<() => void>(resolve => {
+      this.fillLock = Promise.resolve();
+      resolve(() => {
+        this.fillLock = null;
+      });
+    });
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const pathname = url.pathname;
 
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // 安全 headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+
+    // CORS - 限制为 Google Sheets 相关域名
+    res.setHeader('Access-Control-Allow-Origin', 'https://docs.google.com');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
 
     if (req.method === 'OPTIONS') {
-      res.writeHead(200);
+      res.writeHead(204);
       res.end();
       return;
     }
 
-    // API Key 验证
+    // API Key 验证（loadConfig 已确保 api_key 已配置且不是默认值）
     const apiKey = req.headers['x-api-key'] as string || url.searchParams.get('api_key');
-    if (this.config.server.api_key && apiKey !== this.config.server.api_key) {
+    if (apiKey !== this.config.server.api_key) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Unauthorized' }));
       return;
@@ -59,21 +80,29 @@ class FillSheetServer {
       }
 
       if (pathname === '/fill') {
-        if (this.service?.['isRunning']) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'already_running', message: 'Fill is already in progress' }));
+        // 尝试获取锁
+        const releaseLock = await this.acquireLock();
+        if (!releaseLock) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'conflict', message: 'Another fill process is already running' }));
           return;
         }
 
-        this.service = new FillSheetService(this.config, this.proxyHost, this.proxyPort);
+        this.service = new FillSheetService(this.config);
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(202, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'started', message: 'Fill process started' }));
 
-        // 后台执行
+        // 后台执行，完成后释放锁
         console.log(`[${new Date().toISOString()}] Starting fill process...`);
-        const result = await this.service.process();
-        console.log(`[${new Date().toISOString()}] Fill complete: processed=${result.processed}, errors=${result.errors.length}`);
+        try {
+          const result = await this.service.process();
+          console.log(`[${new Date().toISOString()}] Fill complete: processed=${result.processed}, errors=${result.errors.length}`);
+        } catch (e) {
+          console.error(`[${new Date().toISOString()}] Fill error:`, e);
+        } finally {
+          releaseLock();
+        }
         return;
       }
 

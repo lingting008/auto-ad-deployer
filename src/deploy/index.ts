@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as yaml from 'js-yaml';
-import * as minimist from 'minimist';
+import minimist from 'minimist';
 import { DeployService } from './DeployService';
 
 /**
@@ -10,11 +9,10 @@ import { DeployService } from './DeployService';
  */
 async function main() {
   const argv = minimist(process.argv.slice(2), {
-    string: ['affiliate', 'site', 'config'],
-    number: ['count'],
+    string: ['affiliate', 'site', 'config', 'count'],
     boolean: ['dry-run', 'help'],
     alias: { a: 'affiliate', s: 'site', c: 'count', d: 'dry-run', h: 'help' },
-    default: { count: 5, 'dry-run': false },
+    default: { count: '5', 'dry-run': 'false' },
   });
 
   if (argv.help) {
@@ -50,8 +48,8 @@ async function main() {
   const result = await service.deploy({
     affiliate: argv.affiliate,
     siteName: argv.site,
-    count: argv.count,
-    dryRun: argv['dry-run'],
+    count: parseInt(argv.count as string, 10) || 5,
+    dryRun: argv['dry-run'] === true || argv['dry-run'] === 'true',
   });
 
   process.exit(0);

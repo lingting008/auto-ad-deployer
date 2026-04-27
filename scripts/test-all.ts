@@ -26,16 +26,16 @@ async function main() {
 
   // 检查字段
   const checks = [
-    { key: 'sheets.spreadsheet_id', val: config.sheets?.spreadsheet_id },
-    { key: 'google_ads.developer_token', val: config.google_ads?.developer_token },
-    { key: 'keyword_api.api_key', val: config.keyword_api?.api_key },
-    { key: 'llm.api_key', val: config.llm?.api_key },
-    { key: 'server.api_key', val: config.server?.api_key },
+    { key: 'sheets.spreadsheet_id', val: config.sheets?.spreadsheet_id, example: 'your_spreadsheet_id_here' },
+    { key: 'keyword_api.api_key', val: config.keyword_api?.api_key, example: 'YOUR_AITDK_API_KEY' },
+    { key: 'llm.api_key', val: config.llm?.api_key, example: 'YOUR_LLM_API_KEY' },
+    { key: 'server.api_key', val: config.server?.api_key, example: 'CHANGE_ME_TO_RANDOM_SECRET' },
+    { key: 'proxy.host', val: config.proxy?.host, example: 'YOUR_PROXY_HOST' },
   ];
 
   for (const check of checks) {
-    if (!check.val || check.val.startsWith('YOUR_')) {
-      console.log(`⚠️  ${check.key} not configured`);
+    if (!check.val || check.val === check.example) {
+      console.log(`⚠️  ${check.key} not configured (currently: ${check.val || '(empty)'})`);
     } else {
       console.log(`✅ ${check.key} configured`);
     }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { AffiliateOffer, AffiliateCredential } from '../../types';
+import { AffiliateOffer } from '../types';
 
 export interface AffiliateAdapter {
   readonly name: string;
@@ -151,12 +151,18 @@ export class GenericAdapter implements AffiliateAdapter {
             if (offer.id && offer.name) offers.push(offer);
           }
           break;
-        } catch {
+        } catch (e) {
           // try next endpoint
         }
       }
+
+      // 如果所有端点都失败，抛出异常
+      if (offers.length === 0) {
+        throw new Error(`Generic API: No offers retrieved from any endpoint for publisher ${pid}`);
+      }
     } catch (e) {
       console.error(`Generic API error: ${(e as Error).message}`);
+      throw e;
     }
 
     return offers;

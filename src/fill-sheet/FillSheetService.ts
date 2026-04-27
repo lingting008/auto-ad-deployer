@@ -73,10 +73,9 @@ export class FillSheetService {
 
           // Step 3: 生成广告文案
           console.log(`  Step 3: Generating ad copy...`);
-          const brandName = resolved.domain.split('.')[0];
           const adContent = await this.adGenerator.generate(
             resolved.domain,
-            brandName,
+            resolved.domain.split('.')[0],  // brandName from domain
             kwResult.country,
             kwResult.keywords
           );
