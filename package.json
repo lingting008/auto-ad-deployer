@@ -1,0 +1,40 @@
+{
+  "name": "auto-ad-deployer",
+  "version": "1.0.0",
+  "description": "Google Ads 自动投放系统 - 从联盟平台拉取 offer 到自动创建广告",
+  "private": true,
+  "scripts": {
+    "deploy": "ts-node src/deploy/index.ts",
+    "deploy:lh": "ts-node src/deploy/index.ts --affiliate lh",
+    "deploy:pb": "ts-node src/deploy/index.ts --affiliate pb",
+    "fill-sheet": "ts-node src/fill-sheet/server.ts",
+    "fill-sheet:start": "pm2 start ecosystem.config.js",
+    "fill-sheet:logs": "pm2 logs",
+    "fill-sheet:restart": "pm2 restart fill-sheet-user1",
+    "sheets:setup": "ts-node scripts/setup-sheets.ts",
+    "health": "curl http://localhost:3000/health",
+    "test:sheets": "ts-node scripts/test-sheets.ts",
+    "test:link": "ts-node scripts/test-link-resolve.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@google-cloud/sheets": "^4.3.1",
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "googleapis": "^140.0.1",
+    "js-yaml": "^4.1.0",
+    "minimist": "^1.2.8",
+    "puppeteer-core": "^23.3.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^22.5.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

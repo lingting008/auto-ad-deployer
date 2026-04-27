@@ -1,0 +1,15 @@
+name: user1
+port: 3000
+sheets:
+  spreadsheet_id: "YOUR_SPREADSHEET_ID"
+  bulk_tab: "批量投放"
+  history_tab: "offer历史总表"
+  credential_tab: "联盟凭证"
+service_account_key: "./config/service-account.json"
+server_api_key: "CHANGE_ME_TO_RANDOM_SECRET"
+
+proxy:
+  host: "zproxy.lumiproxy.com"  # Brightdata 格式
+  port: 22225
+  username: "YOUR_PROXY_USER"
+  password: "YOUR_PROXY_PASS"

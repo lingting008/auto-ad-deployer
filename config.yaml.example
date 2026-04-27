@@ -1,0 +1,45 @@
+# ===== 自动广告投放系统 - 配置 =====
+# 复制此文件为 config.yaml 并填入真实值（不要提交到 git）
+
+# ===== Google Sheets =====
+# 1. Google Cloud 项目 -> 开启 Sheets API
+# 2. 创建 Service Account -> 下载 JSON 密钥
+# 3. 把 Service Account 邮箱加到 Sheets 共享（编辑者权限）
+sheets:
+  spreadsheet_id: "YOUR_SPREADSHEET_ID"
+  bulk_tab: "批量投放"
+  history_tab: "offer历史总表"
+  credential_tab: "联盟凭证"
+
+# 关键词 API（AITDK.com，用于获取域名关键词和目标国家）
+# https://www.aitdk.com/ 注册获取 API Key
+keyword_api:
+  api_key: "YOUR_AITDK_API_KEY"
+  base_url: "https://api.aitdk.com/v1"
+
+# LLM API（用于 AI 生成广告文案标题和描述）
+llm:
+  provider: "openai"           # openai | gemini
+  api_key: "YOUR_LLM_API_KEY"
+  model: "gpt-4o-mini"         # gpt-4o-mini 经济实惠
+  base_url: "https://api.openai.com/v1"
+
+# 住宅代理（用于解析联盟链接跳转链）
+# 推荐 Brightdata / Oxylabs / Smartproxy
+proxy:
+  host: "YOUR_PROXY_HOST"      # 如 zproxy.lumiproxy.com
+  port: 8080
+  username: "YOUR_PROXY_USER"
+  password: "YOUR_PROXY_PASS"
+
+# ===== 服务器配置 =====
+server:
+  port: 3000                   # VPS 上监听的端口
+  host: "0.0.0.0"
+  api_key: "CHANGE_ME_TO_RANDOM_SECRET"  # Apps Script 调用时鉴权
+
+# ===== 投放配置 =====
+campaign:
+  default_budget: 1.5           # 每日预算（美元）
+  default_country: "US"
+  mobile_bid_multiplier: 0.1    # 电脑/平板出价降为 10%

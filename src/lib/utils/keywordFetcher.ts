@@ -1,0 +1,99 @@
+import axios from 'axios';
+import { AppConfig } from '../types';
+
+export interface KeywordResult {
+  keywords: string[];
+  country: string;
+  traffic?: number;
+}
+
+/**
+ * 使用 AITDK API 获取域名关键词和目标国家
+ */
+export class KeywordFetcher {
+  private apiKey: string;
+  private baseUrl: string;
+
+  constructor(config: AppConfig) {
+    this.apiKey = config.keyword_api.api_key;
+    this.baseUrl = config.keyword_api.base_url;
+  }
+
+  /**
+   * 获取域名的关键词
+   */
+  async getKeywords(domain: string, limit: number = 5): Promise<KeywordResult> {
+    try {
+      const response = await axios.get(`${this.baseUrl}/domain`, {
+        params: {
+          api_key: this.apiKey,
+          domain,
+          data: 'top_keywords',
+        },
+        timeout: 10000,
+      });
+
+      const data = response.data;
+      const keywords: string[] = [];
+      let topRegion = 'US';
+      let traffic = 0;
+
+      if (data.top_keywords && Array.isArray(data.top_keywords)) {
+        for (const kw of data.top_keywords) {
+          if (keywords.length >= limit) break;
+          if (kw.keyword && kw.search_volume > 200) {
+            keywords.push(kw.keyword);
+          }
+        }
+      }
+
+      if (data.top_region) {
+        topRegion = this.normalizeCountry(data.top_region);
+      }
+
+      if (data.traffic) {
+        traffic = data.traffic;
+      }
+
+      // 流量太低则不推荐
+      if (traffic < 200) {
+        return { keywords: [], country: topRegion, traffic };
+      }
+
+      return { keywords, country: topRegion, traffic };
+    } catch (e) {
+      console.error(`Failed to fetch keywords for ${domain}:`, (e as Error).message);
+      return { keywords: [], country: 'US', traffic: 0 };
+    }
+  }
+
+  /**
+   * 通过品牌名反猜域名
+   */
+  guessDomainFromBrand(brandName: string): string {
+    const normalized = brandName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const tlds = ['.com', '.co', '.io', '.net', '.org'];
+    for (const tld of tlds) {
+      return `${normalized}${tld}`;
+    }
+    return `${normalized}.com`;
+  }
+
+  private normalizeCountry(regionCode: string): string {
+    const map: { [key: string]: string } = {
+      'US': 'US', 'USA': 'US', 'United States': 'US',
+      'GB': 'GB', 'UK': 'GB', 'United Kingdom': 'GB',
+      'AU': 'AU', 'Australia': 'AU',
+      'CA': 'CA', 'Canada': 'CA',
+      'DE': 'DE', 'Germany': 'DE',
+      'FR': 'FR', 'France': 'FR',
+      'JP': 'JP', 'Japan': 'JP',
+      'BR': 'BR', 'Brazil': 'BR',
+      'IN': 'IN', 'India': 'IN',
+      'ES': 'ES', 'Spain': 'ES',
+      'IT': 'IT', 'Italy': 'IT',
+      'NL': 'NL', 'Netherlands': 'NL',
+    };
+    return map[regionCode] || regionCode;
+  }
+}

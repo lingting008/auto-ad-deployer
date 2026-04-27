@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+npm-debug.log*
+.env
+config.yaml
+config/service-account.json
+config/profiles/*.yaml
+!config/profiles/user1.yaml.example
+!config/profiles/user2.yaml.example
+logs/
+.DS_Store
+*.swp
+*.swo
