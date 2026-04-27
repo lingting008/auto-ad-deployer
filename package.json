@@ -18,7 +18,6 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@google-cloud/sheets": "^4.3.1",
     "axios": "^1.7.7",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
