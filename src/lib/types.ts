@@ -43,6 +43,21 @@ export interface AffiliateOffer {
   clickThroughUrl: string; // 点击追踪链接
   epc?: number;            // 每点击收益
   categories?: string[];   // 分类
+  // Partnermatic 额外字段
+  country?: string;        // 国家
+  supportRegion?: string;  // 支持的地区
+  cookieDays?: number;     // Cookie 天数 (RD)
+  description?: string;     // 项目描述 (site_desc)
+  smartUrl?: string;       // 智能链接
+  shortUrl?: string;       // 短链接
+  avgPaymentCycle?: string; // 平均支付周期
+  brandStatus?: string;    // 品牌状态
+  currencyName?: string;   // 货币名称
+  allowSml?: boolean;      // 是否允许深度链接
+  supportCoupon?: boolean; // 是否支持 coupon/deal
+  filterWords?: string;    // 过滤词
+  repName?: string;        // 品牌联系人
+  repEmail?: string;       // 品牌邮箱
 }
 
 /**
@@ -93,6 +108,11 @@ export interface AppConfig {
     default_budget: number;
     default_country: string;
     mobile_bid_multiplier: number;
+  };
+  partnermatic?: {
+    base_url: string;
+    api_key: string;
+    affiliate_id: string;
   };
 }
 

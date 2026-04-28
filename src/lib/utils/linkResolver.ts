@@ -1,4 +1,6 @@
 import axios, { AxiosError } from 'axios';
+// @ts-ignore - https-proxy-agent 没有类型定义
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 export interface LinkResolutionResult {
   finalUrl: string;
@@ -54,27 +56,19 @@ export class LinkResolver {
         const result = await this.followRedirect(currentUrl, country, cookies, seen, redirectChain);
         if (result) return result;
       } catch (e) {
-        console.error(`Attempt ${attempt + 1} failed for ${currentUrl}:`, (e as Error).message);
+        console.error(`Attempt ${attempt + 1} failed:`, (e as Error).message);
       }
     }
 
     throw new Error(`Failed to resolve link after 3 attempts: ${offerUrl}`);
   }
 
-  private buildAxiosProxy(): false | {
-    host: string;
-    port: number;
-    auth?: { username: string; password: string };
-    protocol?: string;
-  } {
+  private buildProxyAgent(): HttpsProxyAgent | null {
     const { host, port, username, password } = this.proxyConfig;
-    if (!host) return false;
-    return {
-      host,
-      port,
-      auth: username ? { username, password: password || '' } : undefined,
-      protocol: 'http',
-    };
+    if (!host) return null;
+    const auth = username ? `${username}:${password || ''}` : undefined;
+    const proxyUrl = `http://${auth ? auth + '@' : ''}${host}:${port}`;
+    return new HttpsProxyAgent(proxyUrl);
   }
 
   private async followRedirect(
@@ -105,7 +99,8 @@ export class LinkResolver {
           'Accept-Language': this.randomAcceptLanguage(country),
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
-        proxy: this.buildAxiosProxy(),
+        httpsAgent: this.buildProxyAgent(),
+        httpAgent: this.buildProxyAgent(),
         validateStatus: (status) => status !== undefined && status < 600,
         signal: controller.signal,
       });
@@ -149,15 +144,18 @@ export class LinkResolver {
 
         const metaRefresh = this.extractMetaRefresh(html);
         if (metaRefresh) {
+          console.log(`  [Meta Refresh] Found: ${metaRefresh}`);
           return this.followRedirect(metaRefresh, country, cookies, seen, chain);
         }
 
         const formPost = this.extractFormPost(html);
         if (formPost && formPost.action) {
+          console.log(`  [Form POST] Found action: ${formPost.action}`);
           return this.handleFormPost(url, formPost, country, cookies, seen, chain);
         }
 
         // 到达终点
+        console.log(`  [End] No redirect found, returning current URL`);
         const urlSuffix = this.extractUrlSuffix(chain);
         const finalUrl = chain[chain.length - 1];
         const urlObj = new URL(finalUrl);
@@ -212,7 +210,8 @@ export class LinkResolver {
           'Cookie': cookieStr,
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        proxy: this.buildAxiosProxy(),
+        httpsAgent: this.buildProxyAgent(),
+        httpAgent: this.buildProxyAgent(),
         validateStatus: (status) => status !== undefined && status < 600,
       });
 
@@ -230,16 +229,33 @@ export class LinkResolver {
 
   private extractJsRedirect(html: string): string | null {
     const patterns = [
+      // location.replace(u) 变量形式
+      /location\.replace\s*\(\s*(\w+)\s*\)/i,
+      // window.location = "URL"
       /window\.location\s*=\s*['"]([^'"]+)['"]/i,
+      // window.location.href = "URL"
       /window\.location\.href\s*=\s*['"]([^'"]+)['"]/i,
+      // self.location = "URL"
       /self\.location\s*=\s*['"]([^'"]+)['"]/i,
+      // top.location = "URL"
       /top\.location\s*=\s*['"]([^'"]+)['"]/i,
+      // document.location = "URL"
       /document\.location\s*=\s*['"]([^'"]+)['"]/i,
-      /location\.replace\s*\(\s*['"]([^'"]+)['"]/i,
+      // location.replace("URL")
+      /location\.replace\s*\(\s*['"]([^'"]+)['"]\s*\)/i,
     ];
     for (const p of patterns) {
       const m = html.match(p);
-      if (m) return m[1];
+      if (m) {
+        // 如果匹配的是变量形式，尝试在函数调用中找到变量值
+        if (m[1] && !m[1].includes('://')) {
+          const varName = m[1];
+          const varPattern = new RegExp(`var\\s+${varName}\\s*=\\s*['"]([^'"]+)['"]`, 'i');
+          const varMatch = html.match(varPattern);
+          if (varMatch) return varMatch[1];
+        }
+        return m[1];
+      }
     }
     return null;
   }
@@ -279,29 +295,26 @@ export class LinkResolver {
     };
   }
 
+  /**
+   * 提取 URL 后缀参数
+   * 规则：从最终落地页提取所有追踪参数（UTM + 联盟追踪参数）
+   * 最终 URL 格式示例：https://www.brevo.com/landing/?utm_medium=affiliates&utm_source=linkhaitao&sid=lh_xxx
+   */
   private extractUrlSuffix(chain: string[]): string {
-    const skipDomains = ['onelink.me', 'app.link', 'bit.ly', 'tinyurl.com', 'rebrand.ly', 't.co', 'goo.gl', 'buff.ly', 'j.mp', 'ad.g', 'redirect'];
+    // 从跳转链最后一个 URL（最终落地页）提取所有参数
+    if (chain.length === 0) return '';
 
-    for (let i = chain.length - 1; i >= 0; i--) {
-      const url = chain[i];
-      try {
-        const urlObj = new URL(url);
-        const isSkip = skipDomains.some(d => urlObj.hostname.includes(d));
-        if (isSkip) continue;
+    const finalUrl = chain[chain.length - 1];
+    try {
+      const urlObj = new URL(finalUrl);
+      const searchParams = urlObj.search;
+      if (!searchParams) return '';
 
-        const searchParams = urlObj.search;
-        if (searchParams) {
-          const params = new URLSearchParams(searchParams);
-          const skipParams = ['gclid', 'fbclid', 'msclkid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', '_ga', '_gl'];
-          skipParams.forEach(p => params.delete(p));
-          const suffix = params.toString();
-          if (suffix) return suffix;
-        }
-      } catch {
-        // ignore
-      }
+      // 保留所有参数（UTM + 联盟追踪参数）
+      return searchParams.slice(1); // 去掉开头的 ?
+    } catch {
+      return '';
     }
-    return '';
   }
 
   private resolveUrl(base: string, relative: string): string {

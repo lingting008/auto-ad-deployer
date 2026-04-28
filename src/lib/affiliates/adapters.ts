@@ -108,6 +108,75 @@ export class PeerFlyAdapter implements AffiliateAdapter {
 }
 
 /**
+ * Partnermatic (pm) 联盟 API 封装
+ * 获取品牌/offer 列表并生成追踪链接
+ */
+export class PartnermaticAdapter implements AffiliateAdapter {
+  readonly name = 'pm';
+
+  async fetchOffers(credential: { pid: string; token: string; campaignId?: string }): Promise<AffiliateOffer[]> {
+    const { token, campaignId } = credential;
+    const offers: AffiliateOffer[] = [];
+
+    try {
+      // 获取品牌列表（最多 2000 条/页）
+      const response = await axios.get('https://api.partnermatic.com/monetize', {
+        params: {
+          api_token: token,
+          campaign_id: campaignId,
+          approval_type: 1,  // 1 = 已批准
+          relationship: 1,   // 1 = 合作关系
+          perPage: 2000,
+          curPage: 0,
+        },
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      const data = response.data;
+      const list = data?.data?.list || [];
+
+      for (const item of list) {
+        const offer: AffiliateOffer = {
+          id: item.mcid?.toString() || item.id?.toString(),
+          name: item.mcname || item.name || item.site_name || '',
+          primaryUrl: item.tracking_url || '',
+          clickThroughUrl: item.tracking_url || item.tracking_url_smart || '',
+          epc: item.avg_payout || 0,
+          categories: item.categories || [],
+          // Partnermatic 额外字段（根据截图）
+          country: item.country || '',
+          supportRegion: item.support_region || '',
+          cookieDays: item.RD || 0,
+          description: item.site_desc || '',
+          smartUrl: item.tracking_url_smart || '',
+          shortUrl: item.tracking_url_short || '',
+          avgPaymentCycle: item.avg_payment_cycle || '',
+          brandStatus: item.brand_status || '',
+          currencyName: item.currency_name || '',
+          allowSml: item.allow_sml || false,
+          supportCoupon: item.support_couponordeal || false,
+          filterWords: item.filter_words || '',
+          repName: item.rep_name || '',
+          repEmail: item.rep_email || '',
+        };
+
+        if (offer.id && offer.name) {
+          offers.push(offer);
+        }
+      }
+    } catch (e) {
+      console.error(`Partnermatic API error: ${(e as Error).message}`);
+      throw e;
+    }
+
+    return offers;
+  }
+}
+
+/**
  * Generic 联盟 API 封装（可扩展用于其他平台）
  */
 export class GenericAdapter implements AffiliateAdapter {

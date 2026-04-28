@@ -1,4 +1,4 @@
-import { AffiliateAdapter, LinkHouseAdapter, PeerFlyAdapter, GenericAdapter } from './adapters';
+import { AffiliateAdapter, LinkHouseAdapter, PeerFlyAdapter, GenericAdapter, PartnermaticAdapter } from './adapters';
 
 export class AffiliateFactory {
   private static adapters: { [name: string]: AffiliateAdapter } = {
@@ -6,6 +6,8 @@ export class AffiliateFactory {
     'linkhouse': new LinkHouseAdapter(),
     'pb': new PeerFlyAdapter(),
     'peerfly': new PeerFlyAdapter(),
+    'pm': new PartnermaticAdapter(),
+    'partnermatic': new PartnermaticAdapter(),
     'generic': new GenericAdapter(),
   };
 

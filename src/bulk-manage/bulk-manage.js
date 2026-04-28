@@ -15,7 +15,7 @@
 
 // ===== 配置（填入你的 Sheets 信息） =====
 var CONFIG = {
-  SPREADSHEET_ID: 'YOUR_SPREADSHEET_ID',
+  SPREADSHEET_ID: '1fj8-4sb3x7uo4N-R8WCTB9UivtjNdadg0n7Qi1cZ6Lk',
   BULK_TAB: '批量投放',
   HISTORY_TAB: 'offer历史总表',
 };
@@ -67,19 +67,24 @@ function main() {
     var rowIndex = row.rowIndex;
     var data = row.data;
 
-    var accountId = data[0];   // A: CID
-    var website = data[1];     // B: website
-    var campaignName = data[2]; // C: campaign name
-    var dynamicUrl = data[3];  // D: dynamic URL
-    var country = data[5];     // F: country
-    var keywords = data[8];    // I: keywords
-    var titles = data[9];      // J: titles
-    var descriptions = data[10]; // K: descriptions
-    var budget = parseFloat(data[11]) || 1.5;
-    var urlSuffix = data[7];   // H: url suffix
+    // A:账号ID, B:官网, C:广告系列名称, D:商家名称, E:商家ID, F:联盟链接, G:联盟名称, H:国家, I:状态, J:URL后缀, K:关键词, L:广告标题, M:广告描述, N:预算
+    var accountId = data[0];      // A: CID
+    var website = data[1];        // B: website (落地页)
+    var campaignName = data[2];   // C: campaign name
+    var merchantName = data[3];   // D: 商家名称
+    var merchantId = data[4];     // E: 商家ID
+    var trackingUrl = data[5];    // F: 联盟追踪链接
+    var affiliateName = data[6];  // G: 联盟名称
+    var country = data[7];         // H: 国家
+    var status = data[8];         // I: 状态
+    var urlSuffix = data[9];      // J: URL后缀
+    var keywords = data[10];      // K: 关键词
+    var titles = data[11];        // L: 广告标题
+    var descriptions = data[12]; // M: 广告描述
+    var budget = parseFloat(data[13]) || 1.5; // N: 预算
 
-    if (!accountId || !dynamicUrl) {
-      updateRowStatus(sheetConfig, rowIndex, 'error', 'Missing account ID or URL');
+    if (!accountId || !trackingUrl) {
+      updateRowStatus(sheetConfig, rowIndex, 'error', 'Missing account ID or tracking URL');
       continue;
     }
 
@@ -115,8 +120,8 @@ function main() {
       // 设置国家和语言定向
       setLocationAndLanguage(campaign, country);
 
-      // 创建 RSA 广告
-      createRSAd(adGroup, titles, descriptions, dynamicUrl, urlSuffix);
+      // 创建 RSA 广告（使用追踪链接）
+      createRSAd(adGroup, titles, descriptions, trackingUrl, urlSuffix);
 
       // 激活广告
       campaign.status('ENABLED');
@@ -268,7 +273,7 @@ function getRowsByStatus(sheetConfig, status) {
   var results = [];
 
   for (var i = 1; i < rows.length; i++) {
-    if (rows[i][6] === status) {
+    if (rows[i][8] === status) {
       results.push({ rowIndex: i + 1, data: rows[i] });
     }
   }
@@ -276,36 +281,42 @@ function getRowsByStatus(sheetConfig, status) {
   return results;
 }
 
+// 更新 I 列状态和 P 列备注
 function updateRowStatus(sheetConfig, rowIndex, status, notes) {
-  var range = CONFIG.BULK_TAB + '!G' + rowIndex + ':N' + rowIndex;
+  var statusCell = CONFIG.BULK_TAB + '!I' + rowIndex;
+  var notesCell = CONFIG.BULK_TAB + '!P' + rowIndex;
 
-  var currentResponse = UrlFetchApp.fetch(
-    'https://sheets.googleapis.com/v4/spreadsheets/' + sheetConfig.spreadsheetId +
-    '/values/' + encodeURIComponent(range),
-    {
-      headers: { Authorization: 'Bearer ' + sheetConfig.token },
-      muteHttpExceptions: true,
-    }
-  );
-
-  var current = JSON.parse(currentResponse.getContentText());
-  var currentValues = (current.values || [[]])[0] || [];
-
-  var updates = [[status, notes !== undefined ? notes : (currentValues[7] || '')]];
-
+  // 更新状态 (I列)
   UrlFetchApp.fetch(
     'https://sheets.googleapis.com/v4/spreadsheets/' + sheetConfig.spreadsheetId +
-    '/values/' + encodeURIComponent(range) + '?valueInputOption=RAW',
+    '/values/' + encodeURIComponent(statusCell) + '?valueInputOption=RAW',
     {
       method: 'PUT',
       headers: {
         Authorization: 'Bearer ' + sheetConfig.token,
         'Content-Type': 'application/json',
       },
-      payload: JSON.stringify({ values: updates }),
+      payload: JSON.stringify({ values: [[status]] }),
       muteHttpExceptions: true,
     }
   );
+
+  // 更新备注 (P列)
+  if (notes) {
+    UrlFetchApp.fetch(
+      'https://sheets.googleapis.com/v4/spreadsheets/' + sheetConfig.spreadsheetId +
+      '/values/' + encodeURIComponent(notesCell) + '?valueInputOption=RAW',
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: 'Bearer ' + sheetConfig.token,
+          'Content-Type': 'application/json',
+        },
+        payload: JSON.stringify({ values: [[notes]] }),
+        muteHttpExceptions: true,
+      }
+    );
+  }
 }
 
 function moveRowToHistory(sheetConfig, rowIndex) {
